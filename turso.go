@@ -97,18 +97,19 @@ func coalesceStatus(value *Status) sql.NullString {
 	return sql.NullString{String: string(*value), Valid: true}
 }
 
-func isVideoNew(videoId string) (bool, error) {
+func isVideoNew(videoId string) (bool, error, bool) {
 
 	if db == nil {
-		return false, fmt.Errorf("database connection for isVideoNew is nil")
+		return false, fmt.Errorf("database connection for isVideoNew is nil"), false
 	}
 	video, err := getVideo(videoId)
 	if err != nil {
-		return false, err
+		return false, err, false
 	}
 
-	var status = video.Status == nil
-	println(status)
+	if *video.Status == Processed {
+		return false, nil, true
+	}
 
-	return video.Status == nil, nil
+	return video.Status == nil, nil, false
 }

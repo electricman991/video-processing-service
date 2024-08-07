@@ -64,16 +64,16 @@ type PubSubMessage struct {
 }
 
 func processVideoHandler(w http.ResponseWriter, r *http.Request) {
-	// decoder := json.NewDecoder(r.Body)
-	// if err := decoder.Decode(&msg); err != nil || msg.Name == "" {
-	// 	http.Error(w, "Invalid message payload", http.StatusBadRequest)
-	// 	return
-	// }
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
 	// Parse the Pub/Sub message from the request body
 	var pubSubData map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&pubSubData); err != nil {
 		http.Error(w, fmt.Sprintf("json.NewDecoder: %v", err), http.StatusBadRequest)
+		log.Printf("json.NewDecoder: %v", err)
 		return
 	}
 
@@ -81,12 +81,14 @@ func processVideoHandler(w http.ResponseWriter, r *http.Request) {
 	dataBase64, ok := pubSubData["message"].(map[string]interface{})["data"].(string)
 	if !ok {
 		http.Error(w, "Invalid message payload received.", http.StatusBadRequest)
+		log.Printf("Invalid message payload received.")
 		return
 	}
 
 	dataBytes, err := base64.StdEncoding.DecodeString(dataBase64)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("base64.DecodeString: %v", err), http.StatusBadRequest)
+		log.Printf("base64.DecodeString: %v", err)
 		return
 	}
 
@@ -94,13 +96,13 @@ func processVideoHandler(w http.ResponseWriter, r *http.Request) {
 	var message PubSubMessage
 	if err := json.Unmarshal(dataBytes, &message); err != nil {
 		http.Error(w, fmt.Sprintf("json.Unmarshal: %v", err), http.StatusBadRequest)
+		log.Printf("json.Unmarshal: %v", err)
 		return
 	}
 
-	fmt.Fprintf(w, "Message received")
-
 	if message.Name == "" {
 		http.Error(w, "Bad Request: missing filename.", http.StatusBadRequest)
+		log.Printf("Bad Request: missing filename.")
 		return
 	}
 
@@ -108,7 +110,11 @@ func processVideoHandler(w http.ResponseWriter, r *http.Request) {
 	outputFileName := fmt.Sprintf("processed-%s", inputFileName)
 	videoId := strings.Split(inputFileName, ".")[0]
 
-	if isNew, err := isVideoNew(videoId); !isNew {
+	if isNew, err, isProcessed := isVideoNew(videoId); !isNew {
+		if isProcessed {
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
 		http.Error(w, "Bad Request: video already processing or processed.", http.StatusBadRequest)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Could not retrieve the video from the database. Responded with: %s", err), http.StatusInternalServerError)
@@ -188,17 +194,9 @@ func main() {
 
 	http.HandleFunc("/process-video", processVideoHandler)
 
-	// res, err := retrieve("38f3c375-b5c6-47dd-8afa-968857396ffd-1722762965875")
-
-	// if err != nil {
-	// 	fmt.Printf("Could not get video for id: %s", err)
-	// }
-
-	// println(*res.UID)
-
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "3000"
+		port = "8080"
 	}
 
 	fmt.Printf("Server is running on port %s\n", port)

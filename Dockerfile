@@ -31,7 +31,7 @@ COPY --from=builder /app/video-processing-service /video-processing-service
 
 RUN chmod +x /video-processing-service
 
-EXPOSE 3001
+EXPOSE 8080
 
 # Command to run the executable
 CMD ["/video-processing-service"]
