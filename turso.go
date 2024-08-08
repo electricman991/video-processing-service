@@ -107,8 +107,10 @@ func isVideoNew(videoId string) (bool, error, bool) {
 		return false, err, false
 	}
 
-	if *video.Status == Processed {
-		return false, nil, true
+	if video.Status != nil {
+		if *video.Status == Processed {
+			return false, nil, true
+		}
 	}
 
 	return video.Status == nil, nil, false
