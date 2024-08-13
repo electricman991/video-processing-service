@@ -105,11 +105,12 @@ func uploadProcessedVideo(fileName string) error {
 		return fmt.Errorf("failed to open file %q, %v", fileName, err)
 	}
 
-	// Upload the file to S3.
+	//Upload the file to S3.
 	result, err := uploader.Upload(&s3manager.UploadInput{
 		Bucket: aws.String(processedVideoBucketName),
 		Key:    aws.String(fileName),
 		Body:   f,
+		ACL:    aws.String("public-read"),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to upload file, %v", err)
@@ -126,7 +127,7 @@ func uploadProcessedVideo(fileName string) error {
  */
 
 func deleteRawVideo(fileName string) error {
-	err := os.Remove(localRawVideoPath + fileName)
+	err := os.Remove(localRawVideoPath + "/" + fileName)
 	if err != nil {
 		return err
 	}
@@ -141,7 +142,7 @@ func deleteRawVideo(fileName string) error {
 *
  */
 func deleteProcessedVideo(fileName string) error {
-	err := os.Remove(localProcessedVideoPath + fileName)
+	err := os.Remove(localProcessedVideoPath + "/" + fileName)
 	if err != nil {
 		return err
 	}

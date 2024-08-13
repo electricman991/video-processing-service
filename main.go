@@ -31,7 +31,7 @@ func init() {
 	dev_err := godotenv.Load(".env")
 
 	if dev_err != nil {
-		fmt.Println("No .env file found")
+		fmt.Println("No .env file found. Using environemnt variables defined in production.")
 	}
 
 	var err error
@@ -54,9 +54,6 @@ func init() {
 		fmt.Fprintf(os.Stderr, "failed to open db %s: %s", url, err)
 		os.Exit(1)
 	}
-
-	// db.SetConnMaxLifetime(5 * 60)
-
 }
 
 type PubSubMessage struct {
@@ -66,6 +63,7 @@ type PubSubMessage struct {
 func processVideoHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		log.Printf("Method not allowed: %s", r.Method)
 		return
 	}
 
@@ -118,6 +116,7 @@ func processVideoHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad Request: video already processing or processed.", http.StatusBadRequest)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Could not retrieve the video from the database. Responded with: %s", err), http.StatusInternalServerError)
+			log.Printf("Could not retrieve the video from the database. Responded with: %s", err)
 			return
 		}
 		return
@@ -129,12 +128,14 @@ func processVideoHandler(w http.ResponseWriter, r *http.Request) {
 		Status: &Processing,
 	}); err != nil {
 		http.Error(w, fmt.Sprintf("Could not save video metadata. Server responsed with: %s", err), http.StatusInternalServerError)
+		log.Printf("Could not save video metadata. Server responsed with: %s", err)
 		return
 	}
 
 	// Download the raw video
 	if err := downloadRawVideo(inputFileName); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to download raw video. Responded with: %s", err), http.StatusInternalServerError)
+		log.Printf("Failed to download raw video. Responded with: %s", err)
 		return
 	}
 
@@ -143,6 +144,7 @@ func processVideoHandler(w http.ResponseWriter, r *http.Request) {
 		deleteRawVideo(inputFileName)
 		deleteProcessedVideo(outputFileName)
 		http.Error(w, "Processing failed", http.StatusInternalServerError)
+		log.Printf("Processing failed")
 		return
 	}
 
@@ -150,14 +152,17 @@ func processVideoHandler(w http.ResponseWriter, r *http.Request) {
 	if err := uploadProcessedVideo(outputFileName); err != nil {
 		if err := deleteRawVideo(inputFileName); err != nil {
 			http.Error(w, fmt.Sprintf("Could not delete the raw video file: Error: %s", err), http.StatusInternalServerError)
+			log.Printf("Could not delete the raw video file: Error: %s", err)
 			return
 		}
 
 		if err := deleteProcessedVideo(outputFileName); err != nil {
 			http.Error(w, fmt.Sprintf("Could not delete the processed video file: Error: %s", err), http.StatusInternalServerError)
+			log.Printf("Could not delete the processed video file: Error: %s", err)
 			return
 		}
 		http.Error(w, "Failed to upload processed video", http.StatusInternalServerError)
+		log.Printf("Failed to upload processed video: %s", err)
 		return
 	}
 
@@ -169,17 +174,34 @@ func processVideoHandler(w http.ResponseWriter, r *http.Request) {
 	// Clean up
 	if err := deleteRawVideo(inputFileName); err != nil {
 		http.Error(w, fmt.Sprintf("Could not delete the raw video file: Error: %s", err), http.StatusInternalServerError)
+		log.Printf("Could not delete the raw video file: Error: %s", err)
 		return
 	}
 
 	if err := deleteProcessedVideo(outputFileName); err != nil {
 		http.Error(w, fmt.Sprintf("Could not delete the processed video file: Error: %s", err), http.StatusInternalServerError)
+		log.Printf("Could not delete the processed video file: Error: %s", err)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Processing finished successfully"))
 }
+
+// func retrieveVideos(w http.ResponseWriter, r *http.Request) {
+// 	data, err := getVideos()
+
+// 	if err != nil {
+// 		http.Error(w, fmt.Sprintf("Could not retieve data from database. Responded with error: %s", err), http.StatusBadRequest)
+// 		return
+// 	}
+
+// 	w.Header().Set("Content-Type", "application/json")
+// 	if err := json.NewEncoder(w).Encode(data); err != nil {
+// 		http.Error(w, "Failed to encode data", http.StatusInternalServerError)
+// 	}
+
+// }
 
 // Create a string pointer
 func StringPtr(s string) *string {
@@ -193,6 +215,8 @@ func main() {
 	}
 
 	http.HandleFunc("/process-video", processVideoHandler)
+
+	// http.HandleFunc("/get-videos", retrieveVideos)
 
 	port := os.Getenv("PORT")
 	if port == "" {

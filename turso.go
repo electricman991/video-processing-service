@@ -115,3 +115,42 @@ func isVideoNew(videoId string) (bool, error, bool) {
 
 	return video.Status == nil, nil, false
 }
+
+func getVideos() ([]Video, error) {
+	if db == nil {
+		return []Video{}, fmt.Errorf("database connection for getVideos is nil")
+	}
+	query := `
+    SELECT *
+    FROM yt_web_client_videos
+    LIMIT 10
+    `
+
+	rows, err := db.Query(query)
+
+	if err != nil {
+		return []Video{}, nil
+	}
+	defer rows.Close()
+
+	var data []Video
+
+	for rows.Next() {
+		var video Video
+		var status string
+		errors := rows.Scan(&video.ID, &video.UID, &video.Filename, &status, &video.Title, &video.Description)
+
+		if errors != nil {
+			return []Video{}, errors
+		}
+
+		if status != "" {
+			videoStatus := Status(status)
+			video.Status = &videoStatus
+		}
+
+		data = append(data, video)
+	}
+
+	return data, nil
+}
