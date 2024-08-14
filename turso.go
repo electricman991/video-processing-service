@@ -98,7 +98,6 @@ func coalesceStatus(value *Status) sql.NullString {
 }
 
 func isVideoNew(videoId string) (bool, error, bool) {
-
 	if db == nil {
 		return false, fmt.Errorf("database connection for isVideoNew is nil"), false
 	}
@@ -107,7 +106,9 @@ func isVideoNew(videoId string) (bool, error, bool) {
 		return false, err, false
 	}
 
+	// check status
 	if video.Status != nil {
+		// The video is aalready processed
 		if *video.Status == Processed {
 			return false, nil, true
 		}

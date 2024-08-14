@@ -114,6 +114,7 @@ func processVideoHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		http.Error(w, "Bad Request: video already processing or processed.", http.StatusBadRequest)
+		log.Printf("Bad Request: video already processing or processed.")
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Could not retrieve the video from the database. Responded with: %s", err), http.StatusInternalServerError)
 			log.Printf("Could not retrieve the video from the database. Responded with: %s", err)
@@ -133,7 +134,12 @@ func processVideoHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Download the raw video
-	if err := downloadRawVideo(inputFileName); err != nil {
+	downloadChan := make(chan error)
+
+	go downloadRawVideo(inputFileName, downloadChan)
+	result := <-downloadChan
+
+	if result != nil {
 		http.Error(w, fmt.Sprintf("Failed to download raw video. Responded with: %s", err), http.StatusInternalServerError)
 		log.Printf("Failed to download raw video. Responded with: %s", err)
 		return
@@ -144,12 +150,16 @@ func processVideoHandler(w http.ResponseWriter, r *http.Request) {
 		deleteRawVideo(inputFileName)
 		deleteProcessedVideo(outputFileName)
 		http.Error(w, "Processing failed", http.StatusInternalServerError)
-		log.Printf("Processing failed")
+		log.Printf("Processing failed: %s", err)
 		return
 	}
 
 	// Upload the processed video
-	if err := uploadProcessedVideo(outputFileName); err != nil {
+	uploadChan := make(chan error)
+
+	go uploadProcessedVideo(outputFileName, uploadChan)
+	uploadRes := <-uploadChan
+	if uploadRes != nil {
 		if err := deleteRawVideo(inputFileName); err != nil {
 			http.Error(w, fmt.Sprintf("Could not delete the raw video file: Error: %s", err), http.StatusInternalServerError)
 			log.Printf("Could not delete the raw video file: Error: %s", err)

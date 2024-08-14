@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -65,13 +66,15 @@ func convertVideo(rawVideoName, processedVideoName string) error {
  * @returns An error if the file could not be downloaded or nil if successful
  */
 
-func downloadRawVideo(fileName string) error {
+func downloadRawVideo(fileName string, downloadChan chan error) {
 	// sess := session.Must(session.NewSession())
 	downloader := s3manager.NewDownloader(sess)
 
 	f, err := os.Create(localRawVideoPath + "/" + fileName)
 	if err != nil {
-		return fmt.Errorf("failed to create file %q, %v", fileName, err)
+		downloadChan <- fmt.Errorf("failed to create file %q, %v", fileName, err)
+		return
+		// return fmt.Errorf("failed to create file %q, %v", fileName, err)
 	}
 
 	n, err := downloader.Download(f, &s3.GetObjectInput{
@@ -79,12 +82,22 @@ func downloadRawVideo(fileName string) error {
 		Key:    aws.String(fileName),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to download file, %v", err)
+		downloadChan <- fmt.Errorf("failed to download file, %v", err)
+
+		// Database cleanup when file does not exist
+		query := "DELETE from yt_web_client_videos where id = ?"
+		db.Exec(query, strings.Split(fileName, ".")[0])
+
+		// Delete raw video file that was created
+		deleteRawVideo(fileName)
+		return
+		// return fmt.Errorf("failed to download file, %v", err)
 	}
 	fmt.Printf("file downloaded, %d bytes\n", n)
 
-	fmt.Printf("https://yt-raw-videos/sfo3.digitaloceansapces.com/%s downloaded to ./raw-videos/%s\n", fileName, fileName)
-	return nil
+	fmt.Printf("%s%s downloaded to ./raw-videos/%s\n", os.Getenv("SPACES_RAW_URL"), fileName, fileName)
+	downloadChan <- nil
+	// return nil
 }
 
 /**
@@ -93,7 +106,7 @@ func downloadRawVideo(fileName string) error {
  * @returns An error if failed or nil is successful
  */
 
-func uploadProcessedVideo(fileName string) error {
+func uploadProcessedVideo(fileName string, uploadChan chan error) {
 	// The session the S3 Uploader will use
 	// sess := session.Must(session.NewSession())
 
@@ -102,7 +115,8 @@ func uploadProcessedVideo(fileName string) error {
 
 	f, err := os.Open(localProcessedVideoPath + "/" + fileName)
 	if err != nil {
-		return fmt.Errorf("failed to open file %q, %v", fileName, err)
+		uploadChan <- fmt.Errorf("failed to open file %q, %v", fileName, err)
+		// return fmt.Errorf("failed to open file %q, %v", fileName, err)
 	}
 
 	//Upload the file to S3.
@@ -113,10 +127,12 @@ func uploadProcessedVideo(fileName string) error {
 		ACL:    aws.String("public-read"),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to upload file, %v", err)
+		uploadChan <- fmt.Errorf("failed to upload file, %v", err)
+		// return fmt.Errorf("failed to upload file, %v", err)
 	}
 	fmt.Printf("file uploaded to, %s\n", aws.StringValue(&result.Location))
-	return nil
+	uploadChan <- nil
+	// return nil
 }
 
 /**
