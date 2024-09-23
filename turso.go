@@ -83,6 +83,7 @@ func setVideo(videoId string, video Video) error {
 
 }
 
+// Check if the value exists and if not provide a null value
 func coalesceString(value *string) sql.NullString {
 	if value == nil {
 		return sql.NullString{}
@@ -90,6 +91,7 @@ func coalesceString(value *string) sql.NullString {
 	return sql.NullString{String: *value, Valid: true}
 }
 
+// Check if the value exists and if not provide a null value
 func coalesceStatus(value *Status) sql.NullString {
 	if value == nil {
 		return sql.NullString{}

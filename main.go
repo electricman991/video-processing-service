@@ -17,11 +17,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// type VideoRequest struct {
-// 	InputFilePath  string `json:"inputFilePath"`
-// 	OutputFilePath string `json:"outputFilePath"`
-// }
-
 var (
 	sess *session.Session
 	db   *sql.DB
@@ -37,11 +32,12 @@ func init() {
 	var err error
 	key := os.Getenv("SPACES_KEY")
 	secret := os.Getenv("SPACES_SECRET")
+	spaces_base_url := os.Getenv("SPACES_BASE_URL")
 
 	sess = session.Must(session.NewSession(&aws.Config{
 		S3ForcePathStyle: aws.Bool(false),
 		Region:           aws.String("us-east-1"),
-		Endpoint:         aws.String("https://sfo3.digitaloceanspaces.com"),
+		Endpoint:         aws.String(spaces_base_url),
 		Credentials:      credentials.NewStaticCredentials(key, secret, ""),
 	}))
 	// s3Client = s3.New(sess)
@@ -111,6 +107,7 @@ func processVideoHandler(w http.ResponseWriter, r *http.Request) {
 	if isNew, err, isProcessed := isVideoNew(videoId); !isNew {
 		if isProcessed {
 			w.WriteHeader(http.StatusAccepted)
+			log.Println("Video already processed")
 			return
 		}
 		http.Error(w, "Bad Request: video already processing or processed.", http.StatusBadRequest)
@@ -140,8 +137,8 @@ func processVideoHandler(w http.ResponseWriter, r *http.Request) {
 	result := <-downloadChan
 
 	if result != nil {
-		http.Error(w, fmt.Sprintf("Failed to download raw video. Responded with: %s", err), http.StatusInternalServerError)
-		log.Printf("Failed to download raw video. Responded with: %s", err)
+		http.Error(w, fmt.Sprintf("Failed to download raw video. Responded with: %s", result), http.StatusInternalServerError)
+		log.Printf("Failed to download raw video. Responded with: %s", result)
 		return
 	}
 
@@ -230,7 +227,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = "8081"
 	}
 
 	fmt.Printf("Server is running on port %s\n", port)

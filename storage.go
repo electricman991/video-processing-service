@@ -9,15 +9,15 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/joho/godotenv"
 	ffmpeg "github.com/u2takey/ffmpeg-go"
 )
 
-const (
-	rawVideoBucketName       string = "yt-raw-videos"
-	processedVideoBucketName string = "yt-processed-videos"
+var (
+	rawVideoBucketName       string
+	processedVideoBucketName string
 	localRawVideoPath        string = "./raw-videos"
 	localProcessedVideoPath  string = "./processed-videos"
-	serviceAccountFile       string = "./service.json"
 )
 
 /**
@@ -25,6 +25,16 @@ const (
  */
 
 func setupDirectories() error {
+
+	dev_err := godotenv.Load(".env")
+
+	if dev_err != nil {
+		fmt.Println("No .env file found. Using environemnt variables defined in production.")
+	}
+
+	rawVideoBucketName = os.Getenv("RAW_VIDEO_BUCKET_NAME")
+	processedVideoBucketName = os.Getenv("PROCESSED_VIDEO_BUCKET_NAME")
+
 	if err := ensureDirectoryExistence(localRawVideoPath); err != nil {
 		return err
 	}
